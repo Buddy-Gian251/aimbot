@@ -264,11 +264,33 @@ local create_config_button = function(name, variable, callback)
 	end
 end
 
+local lock_connection
+
+local toggle_loop_lock = function()
+	if lock_connection then
+		lock_connection:Disconnect()
+		lock_connection = nil
+	else
+		lock_connection = RunService.PreRender:Connect(function()
+			if not cam then return end
+			local character = SELF.Character
+			local HRP = character:FindFirstChild("HumanoidRootPart")
+			if not character or not HRP then return end
+			local cameraPivot = cam.CFrame
+			local look = cameraPivot.LookVector
+			local x, y, z = cameraPivot:ToOrientation()
+			local newPivot = CFrame.new(HRP.Position) * CFrame.Angles(0, y, 0)
+			HRP:PivotTo(newPivot)
+		end)
+	end
+end
+
 local auto_aim_conn = nil
 local target_updater_thread = nil
 local lerpSpeed = 16
 local target_head = nil
 local aim_running = false
+local snap_char_choice = false
 
 local function find_closest_target()
 	if not cam or not SELF then return nil end
@@ -365,8 +387,25 @@ create_config_button("Snap speed", lerpSpeed, function(new_value)
 	end
 end)
 
+create_config_button("Snap player character", snap_char_choice, function(new_val)
+	if type(new_val) == "boolean" then
+		snap_char_choice = new_val
+		if snap_char_choice then
+			toggle_loop_lock()
+		else
+			if lock_connection then
+				lock_connection:Disconnect()
+				lock_connection = nil
+			end
+		end
+	end
+end)
+
 aim_button.Activated:Connect(auto_aim_function)
 config_toggle.Activated:Connect(function()
 	if next(currently_dragged) then return end
 	config_frame.Visible = not config_frame.Visible
+	if snap_char_choice then
+		toggle_loop_lock()
+	end
 end)

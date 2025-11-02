@@ -146,16 +146,98 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 end
 
 local aim_button = Instance.new("ImageButton")
+local config_frame = Instance.new("ScrollingFrame")
+local config_toggle = Instance.new("TextButton")
+local config_layout = Instance.new("UIListLayout")
 aim_button.Image = "rbxassetid://358948941"
 aim_button.Parent = gui
 aim_button.Visible = true
 aim_button.Size = UDim2.new(0, 60, 0, 60)
 aim_button.BackgroundTransparency = 0.5
 aim_button.Name = "aim"
+config_frame.Parent = gui
+config_frame.Visible = true
+config_frame.Position = UDim2.new(0.5, -50, 0.5, 100)
+config_frame.Size = UDim2.new(0, 200, 0, 250)
+config_frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+config_frame.BorderSizePixel = 0
+config_toggle.Parent = gui
+config_toggle.Visible = true
+config_toggle.Position = UDim2.new(0.5, -50, 0.5, -140)
+config_toggle.Size = UDim2.new(0, 100, 0, 50)
+config_toggle.Text = "CONFIG"
+config_toggle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+config_toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
+config_toggle.BorderSizePixel = 0
+config_toggle.Font = Enum.Font.GothamBold
+config_layout.Parent = config_frame
+config_layout.SortOrder = Enum.SortOrder.LayoutOrder
+config_layout.Padding = UDim.new(0, 10)
+config_layout.VerticalAlignment = Enum.VerticalAlignment.Top
+config_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+config_layout.FillDirection = Enum.FillDirection.Vertical
+config_layout.HorizontalFlex = Enum.UIFlexAlignment.None
+config_layout.VerticalFlex = Enum.UIFlexAlignment.None
 
 make_draggable(aim_button,true,true)
+make_draggable(config_frame,true,true)
+make_draggable(config_toggle,true,true)
+adjust_layout(config_frame,false,true)
+
+local create_config_button = function(name, variable, callback)
+	local config__main = Instance.new("Frame")
+	local config__title = Instance.new("TextLabel")
+	local config__editable :TextButton
+	if typeof(variable) == "boolean" then
+		config__editable = Instance.new("TextButton")
+	elseif typeof(variable) == "number" then
+		config__editable = Instance.new("TextBox")
+	elseif typeof(variable) == "string" then
+		config__editable = Instance.new("TextBox")
+	else
+		config__editable = Instance.new("TextLabel") -- fallback to read-only
+	end
+	config__main.Parent = config_frame
+	config__main.Size = UDim2.new(1, 0, 0, 30)
+	config__title.Parent = config__main
+	config__title.Visible = true
+	config__title.Position = UDim2.new(0, 0, 0, 0)
+	config__title.Text = tostring(name)
+	config__title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	config__title.Size = UDim2.new(0.5, 0, 1, 0)
+	config__title.Font = Enum.Font.GothamBold
+	config__title.TextColor3 = Color3.fromRGB(0, 0, 0)
+	config__title.TextScaled = true
+	config__title.TextXAlignment = Enum.TextXAlignment.Left
+	config__editable.Parent = config__main
+	config__editable.Visible = true
+	config__editable.Position = UDim2.new(0.5, 0, 0, 0)
+	config__editable.Text = tostring(variable)
+	config__editable.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	config__editable.Size = UDim2.new(0.5, 0, 1, 0)
+	config__editable.Font = Enum.Font.GothamBold
+	config__editable.TextColor3 = Color3.fromRGB(0, 0, 0)
+	config__editable.TextScaled = true
+	config__editable.TextXAlignment = Enum.TextXAlignment.Left
+	if config__editable:IsA("TextBox") then
+		config__editable.PlaceholderText = tostring(variable)
+		config__editable.FocusLost:Connect(function(enterpress)
+			local newtxt = config__editable.Text
+			if newtxt and newtxt ~= "" and (callback and typeof(callback) == "function") then
+				callback(newtxt)
+			end
+		end)
+	elseif config__editable:IsA("TextButton") then
+		config__editable.MouseButton1Click:Connect(function()
+			if (callback and typeof(callback) == "function") then
+				callback()
+			end
+		end)
+	end
+end
 
 local auto_aim_conn = nil
+local lerpSpeed = 16
 
 local auto_aim_function = function()
 	if auto_aim_conn then
@@ -204,11 +286,18 @@ local auto_aim_function = function()
 				local predictedPos = head.Position + targetVelocity * predictionTime
 				local dir = (predictedPos - camCF.Position).Unit
 				local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir)
-				local lerpSpeed = 16
 				cam.CFrame = camCF:Lerp(desiredCF, math.clamp(lerpSpeed * DT, 0, 1))
 			end
 		end)
 	end
 end
 
+create_config_button("Snap speed", lerpSpeed, function(new_value)
+	lerpSpeed = tonumber(new_value)
+end)
+
 aim_button.Activated:Connect(auto_aim_function)
+config_toggle.Activated:Connect(function()
+	if next(currently_dragged) then return end
+	config_frame.Visible = not config_frame.Visible
+end)

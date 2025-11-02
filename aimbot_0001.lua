@@ -50,6 +50,7 @@ local currently_dragged = {}
 local Config = {
 	snap_char_choice = false,
 	lerpSpeed = 16,
+	prediction = true
 }
 
 local message = function(title, text, ptime, icon, button1, button2)
@@ -343,20 +344,23 @@ local function aim_at_target(dt)
 	if not target_head or not cam then return end
 	local camCF = cam.CFrame
 	local head = target_head
-	local targetVelocity = Vector3.new(0,0,0)
 	local root = head.Parent and head.Parent:FindFirstChild("HumanoidRootPart")
+	local targetVelocity = Vector3.zero
 	if root and root:IsA("BasePart") then
 		targetVelocity = root.Velocity
 	elseif head and head:IsA("BasePart") then
 		targetVelocity = head.Velocity
 	end
-	local distance = (head.Position - camCF.Position).Magnitude
-	local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
-	local predictedPos = head.Position + targetVelocity * predictionTime
-	local dir = (predictedPos - camCF.Position)
-	if dir.Magnitude <= 0 then return end
-	local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir.Unit)
-	local alpha = math.clamp(lerpSpeed * dt, 0, 1)
+	local targetPos = head.Position
+	if Config.prediction then
+		local distance = (targetPos - camCF.Position).Magnitude
+		local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
+		targetPos += targetVelocity * predictionTime
+	end
+	local direction = (targetPos - camCF.Position)
+	if direction.Magnitude <= 0 then return end
+	local desiredCF = CFrame.new(camCF.Position, camCF.Position + direction.Unit)
+	local alpha = math.clamp((Config.lerpSpeed or 16) * dt, 0, 1)
 	cam.CFrame = camCF:Lerp(desiredCF, alpha)
 end
 
@@ -397,6 +401,13 @@ create_config_button("Snap player character", "snap_char_choice", function(new_v
 				lock_connection = nil
 			end
 		end
+	end
+end)
+
+create_config_button("Prediction", "prediction", function(new_val)
+	if type(new_val) == "boolean" then
+		Config.prediction = new_val
+		message("Config", "Prediction: " .. (Config.prediction and "ON" or "OFF"), 1.5)
 	end
 end)
 

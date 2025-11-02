@@ -303,12 +303,16 @@ local function auto_aim_function()
 		auto_aim_conn:Disconnect()
 		auto_aim_conn = nil
 		if update_conn then
-			auto_aim_conn = nil
 			update_conn = nil
 		end
 		target_head = nil
 	else
-		task.spawn(update_target_loop)
+		update_conn = task.spawn(function()
+			while auto_aim_conn ~= nil do
+				target_head = find_closest_target()
+				task.wait(0.2)
+			end
+		end)
 		auto_aim_conn = RunService.RenderStepped:Connect(aim_at_target)
 	end
 end

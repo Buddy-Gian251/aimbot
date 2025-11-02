@@ -47,6 +47,10 @@ gui.Enabled = true
 gui.Parent = PARENT
 
 local currently_dragged = {}
+local Config = {
+	snap_char_choice = false,
+	lerpSpeed = 16,
+}
 
 local message = function(title, text, ptime, icon, button1, button2)
 	pcall(function()
@@ -196,70 +200,67 @@ make_draggable(config_frame,true,true)
 make_draggable(config_toggle,true,true)
 adjust_layout(config_frame,false,true)
 
-local create_config_button = function(name, variable, callback)
+local function create_config_button(name, key, callback)
+	local variable = Config[key] -- read the live variable every time
+
 	local config__main = Instance.new("Frame")
 	local config__title = Instance.new("TextLabel")
 	local config__editable
 	local varType = type(variable)
+
 	if varType == "boolean" then
 		config__editable = Instance.new("TextButton")
 	elseif varType == "number" or varType == "string" then
 		config__editable = Instance.new("TextBox")
 	else
-		config__editable = Instance.new("TextLabel") -- fallback read-only
+		config__editable = Instance.new("TextLabel")
 	end
+
 	config__main.Parent = config_frame
 	config__main.Size = UDim2.new(1, 0, 0, 30)
+
 	config__title.Parent = config__main
-	config__title.Visible = true
-	config__title.Position = UDim2.new(0, 0, 0, 0)
 	config__title.Text = tostring(name)
-	config__title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	config__title.Size = UDim2.new(0.5, 0, 1, 0)
 	config__title.Font = Enum.Font.GothamBold
-	config__title.TextColor3 = Color3.fromRGB(0, 0, 0)
+	config__title.TextColor3 = Color3.new(0, 0, 0)
+	config__title.BackgroundColor3 = Color3.new(1, 1, 1)
 	config__title.TextScaled = true
 	config__title.TextXAlignment = Enum.TextXAlignment.Left
+
 	config__editable.Parent = config__main
-	config__editable.Visible = true
 	config__editable.Position = UDim2.new(0.5, 0, 0, 0)
-	config__editable.Text = tostring(variable)
-	config__editable.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	config__editable.Size = UDim2.new(0.5, 0, 1, 0)
 	config__editable.Font = Enum.Font.GothamBold
-	config__editable.TextColor3 = Color3.fromRGB(0, 0, 0)
+	config__editable.TextColor3 = Color3.new(0, 0, 0)
+	config__editable.BackgroundColor3 = Color3.new(1, 1, 1)
 	config__editable.TextScaled = true
-	if config__editable:IsA("TextBox") or config__editable:IsA("TextLabel") then
-		config__editable.TextXAlignment = Enum.TextXAlignment.Left
-	end
+
 	if config__editable:IsA("TextBox") then
-		config__editable.PlaceholderText = tostring(variable)
-		config__editable.ClearTextOnFocus = false
-		config__editable.FocusLost:Connect(function(enterpress)
+		config__editable.Text = tostring(variable)
+		config__editable.FocusLost:Connect(function()
 			local newtxt = config__editable.Text
-			if newtxt and newtxt ~= "" and (callback and type(callback) == "function") then
-				if varType == "number" then
-					local n = tonumber(newtxt)
-					if n then
-						callback(n)
-					else
-						message("Config", "Invalid number entered for "..tostring(name), 2)
-						config__editable.Text = tostring(variable)
-					end
+			if varType == "number" then
+				local n = tonumber(newtxt)
+				if n then
+					Config[key] = n
+					callback(n)
 				else
-					callback(newtxt)
+					message("Config", "Invalid number for " .. name, 2)
+					config__editable.Text = tostring(Config[key])
 				end
+			else
+				Config[key] = newtxt
+				callback(newtxt)
 			end
 		end)
+
 	elseif config__editable:IsA("TextButton") then
-		config__editable.Text = tostring(variable and "ON" or "OFF")
+		config__editable.Text = Config[key] and "ON" or "OFF"
 		config__editable.MouseButton1Click:Connect(function()
-			local newVal = not variable
-			variable = newVal
-			config__editable.Text = tostring(variable and "ON" or "OFF")
-			if callback and type(callback) == "function" then
-				callback(variable)
-			end
+			Config[key] = not Config[key]
+			config__editable.Text = Config[key] and "ON" or "OFF"
+			callback(Config[key])
 		end)
 	end
 end
@@ -378,19 +379,17 @@ local function auto_aim_function()
 	end
 end
 
-create_config_button("Snap speed", lerpSpeed, function(new_value)
-	if type(new_value) == "number" then
-		lerpSpeed = new_value
-	else
-		local n = tonumber(new_value)
-		if n then lerpSpeed = n end
+create_config_button("Snap speed", "lerpSpeed", function(new_value)
+	local n = tonumber(new_value)
+	if n then
+		Config.lerpSpeed = n
 	end
 end)
 
-create_config_button("Snap player character", snap_char_choice, function(new_val)
+create_config_button("Snap player character", "snap_char_choice", function(new_val)
 	if type(new_val) == "boolean" then
-		snap_char_choice = new_val
-		if snap_char_choice then
+		Config.snap_char_choice = new_val
+		if Config.snap_char_choice then
 			toggle_loop_lock()
 		else
 			if lock_connection then

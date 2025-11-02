@@ -237,58 +237,79 @@ local create_config_button = function(name, variable, callback)
 end
 
 local auto_aim_conn = nil
+local update_conn = nil
 local lerpSpeed = 16
+local target_head = nil
 
-local auto_aim_function = function()
+local function find_closest_target()
+	local camCF = cam.CFrame
+	local selfChar = SELF.Character
+	if not selfChar or not cam then return nil end
+	local potentialTargets = {}
+	for _, OTHER in ipairs(Players:GetPlayers()) do
+		if OTHER ~= SELF and OTHER.Character then
+			table.insert(potentialTargets, OTHER.Character)
+		end
+	end
+	for _, model in ipairs(workspace:GetDescendants()) do
+		if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
+			if not Players:GetPlayerFromCharacter(model) and model ~= selfChar then
+				table.insert(potentialTargets, model)
+			end
+		end
+	end
+	local closest, shortest = nil, math.huge
+	for _, char in ipairs(potentialTargets) do
+		local head = char:FindFirstChild("Head")
+		if head then
+			local dist = (head.Position - camCF.Position).Magnitude
+			if dist < shortest then
+				shortest = dist
+				closest = head
+			end
+		end
+	end
+	return closest
+end
+
+local function update_target_loop()
+	while auto_aim_conn do
+		target_head = find_closest_target()
+		task.wait(0.2)
+	end
+end
+
+local function aim_at_target(DT)
+	if not target_head then return end
+	local camCF = cam.CFrame
+	local head = target_head
+	local targetVelocity = Vector3.zero
+	local root = head.Parent:FindFirstChild("HumanoidRootPart")
+	if root then
+		targetVelocity = root.Velocity
+	elseif head:IsA("BasePart") then
+		targetVelocity = head.Velocity
+	end
+	local distance = (head.Position - camCF.Position).Magnitude
+	local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
+	local predictedPos = head.Position + targetVelocity * predictionTime
+	local dir = (predictedPos - camCF.Position).Unit
+	local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir)
+	cam.CFrame = camCF:Lerp(desiredCF, math.clamp(lerpSpeed * DT, 0, 1))
+end
+
+local function auto_aim_function()
 	if auto_aim_conn then
 		auto_aim_conn:Disconnect()
 		auto_aim_conn = nil
+		if update_conn then
+			auto_aim_conn = nil
+			update_conn = nil
+		end
+		target_head = nil
 	else
-		auto_aim_conn = RunService.RenderStepped:Connect(function(DT)
-			local camCF = cam.CFrame
-			local selfChar = SELF.Character
-			if not selfChar or not cam then return end
-			local potentialTargets = {}
-			for _, OTHER in ipairs(Players:GetPlayers()) do
-				if OTHER ~= SELF and OTHER.Character then
-					table.insert(potentialTargets, OTHER.Character)
-				end
-			end
-			for _, model in ipairs(workspace:GetDescendants()) do
-				if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
-					if not Players:GetPlayerFromCharacter(model) and model ~= selfChar then
-						table.insert(potentialTargets, model)
-					end
-				end
-			end
-			local closest, shortest = nil, math.huge
-			for _, char in ipairs(potentialTargets) do
-				local head = char:FindFirstChild("Head")
-				if head then
-					local dist = (head.Position - camCF.Position).Magnitude
-					if dist < shortest then
-						shortest = dist
-						closest = head
-					end
-				end
-			end
-			if closest then
-				local head = closest
-				local targetVelocity = Vector3.zero
-				local root = head.Parent:FindFirstChild("HumanoidRootPart")
-				if root then
-					targetVelocity = root.Velocity
-				elseif head:IsA("BasePart") then
-					targetVelocity = head.Velocity
-				end
-				local distance = (head.Position - camCF.Position).Magnitude
-				local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
-				local predictedPos = head.Position + targetVelocity * predictionTime
-				local dir = (predictedPos - camCF.Position).Unit
-				local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir)
-				cam.CFrame = camCF:Lerp(desiredCF, math.clamp(lerpSpeed * DT, 0, 1))
-			end
-		end)
+		task.spawn(update_target_loop)
+		auto_aim_conn = RunService.RenderStepped:Connect(aim_at_target)
 	end
 end
 

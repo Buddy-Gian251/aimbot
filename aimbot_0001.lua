@@ -1,3 +1,4 @@
+-- Full debugged & improved LocalScript
 if _G.aimbot_loaded and _G.aimbot_loaded == true then return end
 _G.aimbot_loaded = true
 
@@ -9,8 +10,8 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local SELF = Players.LocalPlayer
 local cam = workspace.CurrentCamera
-local ALLPLAYERS = Players:GetPlayers()
 
+-- random string helper
 local random_string = function()
 	local length = math.random(32,64)
 	local array = {}
@@ -20,6 +21,7 @@ local random_string = function()
 	return table.concat(array)
 end
 
+-- safe parent lookup (as you had)
 local PARENT
 do
 	local success, result = pcall(function()
@@ -33,8 +35,8 @@ do
 	end)
 	PARENT = (success and result) or SELF:WaitForChild("PlayerGui")
 end
-print("PARENT: "..PARENT:GetFullName())
-task.wait()
+
+print("PARENT: "..(PARENT and PARENT:GetFullName() or "UNKNOWN"))
 local gui = Instance.new("ScreenGui")
 gui.Name = random_string()
 gui.ResetOnSpawn = false
@@ -59,6 +61,7 @@ local message = function(title, text, ptime, icon, button1, button2)
 	end)
 end
 
+-- Adjust canvas size of a ScrollingFrame based on list/grid layout
 local adjust_layout = function(object, adjust_x, adjust_y)
 	local layout = object:FindFirstChildWhichIsA("UIListLayout") or object:FindFirstChildWhichIsA("UIGridLayout")
 	local padding = object:FindFirstChildWhichIsA("UIPadding")
@@ -92,27 +95,32 @@ local adjust_layout = function(object, adjust_x, adjust_y)
 	updateCanvasSize()
 end
 
+-- Draggable UI helper (hold 1 second to enable dragging)
 local make_draggable = function(UIItem, y_draggable, x_draggable)
 	local dragging = false
 	local dragStart = nil
 	local startPos = nil
 	local holdStartTime = nil
 	local holdConnection = nil
+
 	UIItem.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-			input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			holdStartTime = tick()
 			dragStart = input.Position
 			startPos = UIItem.Position
+
 			holdConnection = RunService.RenderStepped:Connect(function()
 				if not dragging and (tick() - holdStartTime) >= 1 then
-					message("Drag feature", "you can now drag "..(UIItem.Name or "this UI").." anywhere.", 2)
+					message("Drag feature", "you can now drag "..(UIItem.Name or "this UI").." anywhere.", 1.5)
 					dragging = true
 					currently_dragged[UIItem] = true
-					holdConnection:Disconnect()
-					holdConnection = nil
+					if holdConnection then
+						holdConnection:Disconnect()
+						holdConnection = nil
+					end
 				end
 			end)
+
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					if holdConnection then
@@ -129,9 +137,9 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 			end)
 		end
 	end)
+
 	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
-			input.UserInputType == Enum.UserInputType.Touch) then
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
 
 			local newXOffset = x_draggable ~= false and (startPos.X.Offset + delta.X) or startPos.X.Offset
@@ -145,22 +153,27 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 	end)
 end
 
+-- UI creation
 local aim_button = Instance.new("ImageButton")
 local config_frame = Instance.new("ScrollingFrame")
 local config_toggle = Instance.new("TextButton")
 local config_layout = Instance.new("UIListLayout")
+
 aim_button.Image = "rbxassetid://358948941"
 aim_button.Parent = gui
 aim_button.Visible = true
 aim_button.Size = UDim2.new(0, 60, 0, 60)
 aim_button.BackgroundTransparency = 0.5
 aim_button.Name = "aim"
+
 config_frame.Parent = gui
 config_frame.Visible = true
-config_frame.Position = UDim2.new(0.5, -50, 0.5, 100)
+config_frame.Position = UDim2.new(0.5, -100, 0.5, 100)
 config_frame.Size = UDim2.new(0, 200, 0, 250)
 config_frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 config_frame.BorderSizePixel = 0
+config_frame.CanvasSize = UDim2.new(0,0,0,0)
+
 config_toggle.Parent = gui
 config_toggle.Visible = true
 config_toggle.Position = UDim2.new(0.5, -50, 0.5, -140)
@@ -170,14 +183,13 @@ config_toggle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 config_toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
 config_toggle.BorderSizePixel = 0
 config_toggle.Font = Enum.Font.GothamBold
+
 config_layout.Parent = config_frame
 config_layout.SortOrder = Enum.SortOrder.LayoutOrder
 config_layout.Padding = UDim.new(0, 10)
 config_layout.VerticalAlignment = Enum.VerticalAlignment.Top
 config_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 config_layout.FillDirection = Enum.FillDirection.Vertical
-config_layout.HorizontalFlex = Enum.UIFlexAlignment.None
-config_layout.VerticalFlex = Enum.UIFlexAlignment.None
 
 make_draggable(aim_button,true,true)
 make_draggable(config_frame,true,true)
@@ -187,15 +199,14 @@ adjust_layout(config_frame,false,true)
 local create_config_button = function(name, variable, callback)
 	local config__main = Instance.new("Frame")
 	local config__title = Instance.new("TextLabel")
-	local config__editable :TextButton
-	if typeof(variable) == "boolean" then
+	local config__editable
+	local varType = type(variable)
+	if varType == "boolean" then
 		config__editable = Instance.new("TextButton")
-	elseif typeof(variable) == "number" then
-		config__editable = Instance.new("TextBox")
-	elseif typeof(variable) == "string" then
+	elseif varType == "number" or varType == "string" then
 		config__editable = Instance.new("TextBox")
 	else
-		config__editable = Instance.new("TextLabel") -- fallback to read-only
+		config__editable = Instance.new("TextLabel") -- fallback read-only
 	end
 	config__main.Parent = config_frame
 	config__main.Size = UDim2.new(1, 0, 0, 30)
@@ -218,42 +229,65 @@ local create_config_button = function(name, variable, callback)
 	config__editable.Font = Enum.Font.GothamBold
 	config__editable.TextColor3 = Color3.fromRGB(0, 0, 0)
 	config__editable.TextScaled = true
-	config__editable.TextXAlignment = Enum.TextXAlignment.Left
+	if config__editable:IsA("TextBox") or config__editable:IsA("TextLabel") then
+		config__editable.TextXAlignment = Enum.TextXAlignment.Left
+	end
 	if config__editable:IsA("TextBox") then
 		config__editable.PlaceholderText = tostring(variable)
+		config__editable.ClearTextOnFocus = false
 		config__editable.FocusLost:Connect(function(enterpress)
 			local newtxt = config__editable.Text
-			if newtxt and newtxt ~= "" and (callback and typeof(callback) == "function") then
-				callback(newtxt)
+			if newtxt and newtxt ~= "" and (callback and type(callback) == "function") then
+				if varType == "number" then
+					local n = tonumber(newtxt)
+					if n then
+						callback(n)
+					else
+						message("Config", "Invalid number entered for "..tostring(name), 2)
+						config__editable.Text = tostring(variable)
+					end
+				else
+					callback(newtxt)
+				end
 			end
 		end)
 	elseif config__editable:IsA("TextButton") then
+		config__editable.Text = tostring(variable and "ON" or "OFF")
 		config__editable.MouseButton1Click:Connect(function()
-			if (callback and typeof(callback) == "function") then
-				callback()
+			local newVal = not variable
+			variable = newVal
+			config__editable.Text = tostring(variable and "ON" or "OFF")
+			if callback and type(callback) == "function" then
+				callback(variable)
 			end
 		end)
 	end
 end
 
 local auto_aim_conn = nil
-local update_conn = nil
+local target_updater_thread = nil
 local lerpSpeed = 16
 local target_head = nil
+local aim_running = false
 
 local function find_closest_target()
+	if not cam or not SELF then return nil end
 	local camCF = cam.CFrame
 	local selfChar = SELF.Character
-	if not selfChar or not cam then return nil end
+	if not selfChar then return nil end
+	local potentialTargetsSet = {}
 	local potentialTargets = {}
-	for _, OTHER in ipairs(Players:GetPlayers()) do
-		if OTHER ~= SELF and OTHER.Character then
-			table.insert(potentialTargets, OTHER.Character)
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl ~= SELF and pl.Character and not potentialTargetsSet[pl.Character] then
+			potentialTargetsSet[pl.Character] = true
+			table.insert(potentialTargets, pl.Character)
 		end
 	end
 	for _, model in ipairs(workspace:GetDescendants()) do
 		if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
-			if not Players:GetPlayerFromCharacter(model) and model ~= selfChar then
+			local alreadyPlayerChar = Players:GetPlayerFromCharacter(model) ~= nil
+			if not alreadyPlayerChar and model ~= selfChar and not potentialTargetsSet[model] then
+				potentialTargetsSet[model] = true
 				table.insert(potentialTargets, model)
 			end
 		end
@@ -261,7 +295,7 @@ local function find_closest_target()
 	local closest, shortest = nil, math.huge
 	for _, char in ipairs(potentialTargets) do
 		local head = char:FindFirstChild("Head")
-		if head then
+		if head and head:IsA("BasePart") then
 			local dist = (head.Position - camCF.Position).Magnitude
 			if dist < shortest then
 				shortest = dist
@@ -273,52 +307,62 @@ local function find_closest_target()
 end
 
 local function update_target_loop()
-	while auto_aim_conn do
-		target_head = find_closest_target()
-		task.wait()
+	while aim_running do
+		pcall(function()
+			target_head = find_closest_target()
+		end)
+		task.wait(0.18)
 	end
+	target_head = nil
 end
 
-local function aim_at_target(DT)
-	if not target_head then return end
+local function aim_at_target(dt)
+	if not target_head or not cam then return end
 	local camCF = cam.CFrame
 	local head = target_head
-	local targetVelocity = Vector3.zero
-	local root = head.Parent:FindFirstChild("HumanoidRootPart")
-	if root then
+	local targetVelocity = Vector3.new(0,0,0)
+	local root = head.Parent and head.Parent:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
 		targetVelocity = root.Velocity
-	elseif head:IsA("BasePart") then
+	elseif head and head:IsA("BasePart") then
 		targetVelocity = head.Velocity
 	end
 	local distance = (head.Position - camCF.Position).Magnitude
 	local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
 	local predictedPos = head.Position + targetVelocity * predictionTime
-	local dir = (predictedPos - camCF.Position).Unit
-	local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir)
-	cam.CFrame = camCF:Lerp(desiredCF, math.clamp(lerpSpeed * DT, 0, 1))
+	local dir = (predictedPos - camCF.Position)
+	if dir.Magnitude <= 0 then return end
+	local desiredCF = CFrame.new(camCF.Position, camCF.Position + dir.Unit)
+	local alpha = math.clamp(lerpSpeed * dt, 0, 1)
+	cam.CFrame = camCF:Lerp(desiredCF, alpha)
 end
 
 local function auto_aim_function()
-	if auto_aim_conn then
-		auto_aim_conn:Disconnect()
-		auto_aim_conn = nil
-		if update_conn then
-			update_conn = nil
+	if aim_running then
+		aim_running = false
+		if auto_aim_conn then
+			auto_aim_conn:Disconnect()
+			auto_aim_conn = nil
 		end
 		target_head = nil
+		message("Auto Aim", "Auto-aim stopped", 1)
 	else
-		update_conn = task.spawn(function()
-			while auto_aim_conn ~= nil do
-				target_head = find_closest_target()
-				task.wait(0.2)
-			end
+		aim_running = true
+		target_updater_thread = task.spawn(update_target_loop)
+		auto_aim_conn = RunService.RenderStepped:Connect(function(dt)
+			pcall(function() aim_at_target(dt) end)
 		end)
-		auto_aim_conn = RunService.RenderStepped:Connect(aim_at_target)
+		message("Auto Aim", "Auto-aim started", 1)
 	end
 end
 
 create_config_button("Snap speed", lerpSpeed, function(new_value)
-	lerpSpeed = tonumber(new_value)
+	if type(new_value) == "number" then
+		lerpSpeed = new_value
+	else
+		local n = tonumber(new_value)
+		if n then lerpSpeed = n end
+	end
 end)
 
 aim_button.Activated:Connect(auto_aim_function)

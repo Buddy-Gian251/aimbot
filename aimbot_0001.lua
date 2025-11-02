@@ -275,7 +275,7 @@ end
 local function update_target_loop()
 	while auto_aim_conn do
 		target_head = find_closest_target()
-		task.wait(0.2)
+		task.wait(2)
 	end
 end
 

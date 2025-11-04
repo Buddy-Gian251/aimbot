@@ -1,4 +1,3 @@
--- Full debugged & improved LocalScript
 if _G.aimbot_loaded and _G.aimbot_loaded == true then return end
 _G.aimbot_loaded = true
 
@@ -11,7 +10,6 @@ local StarterGui = game:GetService("StarterGui")
 local SELF = Players.LocalPlayer
 local cam = workspace.CurrentCamera
 
--- random string helper
 local random_string = function()
 	local length = math.random(32,64)
 	local array = {}
@@ -21,7 +19,6 @@ local random_string = function()
 	return table.concat(array)
 end
 
--- safe parent lookup (as you had)
 local PARENT
 do
 	local success, result = pcall(function()
@@ -66,7 +63,6 @@ local message = function(title, text, ptime, icon, button1, button2)
 	end)
 end
 
--- Adjust canvas size of a ScrollingFrame based on list/grid layout
 local adjust_layout = function(object, adjust_x, adjust_y)
 	local layout = object:FindFirstChildWhichIsA("UIListLayout") or object:FindFirstChildWhichIsA("UIGridLayout")
 	local padding = object:FindFirstChildWhichIsA("UIPadding")
@@ -77,7 +73,6 @@ local adjust_layout = function(object, adjust_x, adjust_y)
 	local updateCanvasSize = function()
 		task.wait()
 		local absContentSize = layout.AbsoluteContentSize
-
 		local padX, padY = 0, 0
 		if padding then
 			padX = (padding.PaddingLeft.Offset + padding.PaddingRight.Offset)
@@ -85,7 +80,6 @@ local adjust_layout = function(object, adjust_x, adjust_y)
 		end
 		local totalX = absContentSize.X + padX + 10
 		local totalY = absContentSize.Y + padY + 10
-
 		if adjust_x and adjust_y then
 			object.CanvasSize = UDim2.new(0, totalX, 0, totalY)
 		elseif adjust_x then
@@ -100,20 +94,17 @@ local adjust_layout = function(object, adjust_x, adjust_y)
 	updateCanvasSize()
 end
 
--- Draggable UI helper (hold 1 second to enable dragging)
 local make_draggable = function(UIItem, y_draggable, x_draggable)
 	local dragging = false
 	local dragStart = nil
 	local startPos = nil
 	local holdStartTime = nil
 	local holdConnection = nil
-
 	UIItem.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			holdStartTime = tick()
 			dragStart = input.Position
 			startPos = UIItem.Position
-
 			holdConnection = RunService.RenderStepped:Connect(function()
 				if not dragging and (tick() - holdStartTime) >= 1 then
 					message("Drag feature", "you can now drag "..(UIItem.Name or "this UI").." anywhere.", 1.5)
@@ -125,7 +116,6 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 					end
 				end
 			end)
-
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					if holdConnection then
@@ -142,14 +132,11 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 			end)
 		end
 	end)
-
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
-
 			local newXOffset = x_draggable ~= false and (startPos.X.Offset + delta.X) or startPos.X.Offset
 			local newYOffset = y_draggable ~= false and (startPos.Y.Offset + delta.Y) or startPos.Y.Offset
-
 			UIItem.Position = UDim2.new(
 				startPos.X.Scale, newXOffset,
 				startPos.Y.Scale, newYOffset
@@ -158,19 +145,16 @@ local make_draggable = function(UIItem, y_draggable, x_draggable)
 	end)
 end
 
--- UI creation
 local aim_button = Instance.new("ImageButton")
 local config_frame = Instance.new("ScrollingFrame")
 local config_toggle = Instance.new("TextButton")
 local config_layout = Instance.new("UIListLayout")
-
 aim_button.Image = "rbxassetid://358948941"
 aim_button.Parent = gui
 aim_button.Visible = true
 aim_button.Size = UDim2.new(0, 60, 0, 60)
 aim_button.BackgroundTransparency = 0.5
 aim_button.Name = "aim"
-
 config_frame.Parent = gui
 config_frame.Visible = true
 config_frame.Position = UDim2.new(0.5, -100, 0.5, 100)
@@ -178,7 +162,6 @@ config_frame.Size = UDim2.new(0, 200, 0, 250)
 config_frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 config_frame.BorderSizePixel = 0
 config_frame.CanvasSize = UDim2.new(0,0,0,0)
-
 config_toggle.Parent = gui
 config_toggle.Visible = true
 config_toggle.Position = UDim2.new(0.5, -50, 0.5, -140)
@@ -188,7 +171,6 @@ config_toggle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 config_toggle.TextColor3 = Color3.fromRGB(0, 0, 0)
 config_toggle.BorderSizePixel = 0
 config_toggle.Font = Enum.Font.GothamBold
-
 config_layout.Parent = config_frame
 config_layout.SortOrder = Enum.SortOrder.LayoutOrder
 config_layout.Padding = UDim.new(0, 10)
@@ -201,14 +183,22 @@ make_draggable(config_frame,true,true)
 make_draggable(config_toggle,true,true)
 adjust_layout(config_frame,false,true)
 
-local function create_config_button(name, key, callback)
-	local variable = Config[key] -- read the live variable every time
+local function add_config(key, default_value)
+	if Config[key] == nil then
+		Config[key] = default_value
+		print("[Config] Created new setting:", key, "=", tostring(default_value))
+	else
+		print("[Config] Using existing setting:", key, "=", tostring(Config[key]))
+	end
+	return Config[key]
+end
 
+local function create_config_button(name, key, default_value, callback)
+	local variable = add_config(key, default_value)
 	local config__main = Instance.new("Frame")
 	local config__title = Instance.new("TextLabel")
 	local config__editable
 	local varType = type(variable)
-
 	if varType == "boolean" then
 		config__editable = Instance.new("TextButton")
 	elseif varType == "number" or varType == "string" then
@@ -216,10 +206,8 @@ local function create_config_button(name, key, callback)
 	else
 		config__editable = Instance.new("TextLabel")
 	end
-
 	config__main.Parent = config_frame
 	config__main.Size = UDim2.new(1, 0, 0, 30)
-
 	config__title.Parent = config__main
 	config__title.Text = tostring(name)
 	config__title.Size = UDim2.new(0.5, 0, 1, 0)
@@ -228,7 +216,6 @@ local function create_config_button(name, key, callback)
 	config__title.BackgroundColor3 = Color3.new(1, 1, 1)
 	config__title.TextScaled = true
 	config__title.TextXAlignment = Enum.TextXAlignment.Left
-
 	config__editable.Parent = config__main
 	config__editable.Position = UDim2.new(0.5, 0, 0, 0)
 	config__editable.Size = UDim2.new(0.5, 0, 1, 0)
@@ -236,7 +223,6 @@ local function create_config_button(name, key, callback)
 	config__editable.TextColor3 = Color3.new(0, 0, 0)
 	config__editable.BackgroundColor3 = Color3.new(1, 1, 1)
 	config__editable.TextScaled = true
-
 	if config__editable:IsA("TextBox") then
 		config__editable.Text = tostring(variable)
 		config__editable.FocusLost:Connect(function()
@@ -255,7 +241,6 @@ local function create_config_button(name, key, callback)
 				callback(newtxt)
 			end
 		end)
-
 	elseif config__editable:IsA("TextButton") then
 		config__editable.Text = Config[key] and "ON" or "OFF"
 		config__editable.MouseButton1Click:Connect(function()
@@ -264,6 +249,7 @@ local function create_config_button(name, key, callback)
 			callback(Config[key])
 		end)
 	end
+	return Config[key]
 end
 
 local lock_connection
@@ -329,7 +315,6 @@ local function find_closest_target()
 	end
 	return closest
 end
-
 local function update_target_loop()
 	while aim_running do
 		pcall(function()
@@ -339,7 +324,6 @@ local function update_target_loop()
 	end
 	target_head = nil
 end
-
 local function aim_at_target(dt)
 	if not target_head or not cam then return end
 	local camCF = cam.CFrame
@@ -361,9 +345,12 @@ local function aim_at_target(dt)
 	if direction.Magnitude <= 0 then return end
 	local desiredCF = CFrame.new(camCF.Position, camCF.Position + direction.Unit)
 	local alpha = math.clamp((Config.lerpSpeed or 16) * dt, 0, 1)
-	cam.CFrame = camCF:Lerp(desiredCF, alpha)
+	if Config["smoothing"] then
+		cam.CFrame = camCF:Lerp(desiredCF, alpha)
+	else
+		cam.CFrame = desiredCF
+	end
 end
-
 local function auto_aim_function()
 	if aim_running then
 		aim_running = false
@@ -382,15 +369,13 @@ local function auto_aim_function()
 		message("Auto Aim", "Auto-aim started", 1)
 	end
 end
-
-create_config_button("Snap speed", "lerpSpeed", function(new_value)
+local snapspeed = create_config_button("Snap speed", "lerpSpeed", 16, function(new_value)
 	local n = tonumber(new_value)
 	if n then
 		Config.lerpSpeed = n
 	end
 end)
-
-create_config_button("Snap player character", "snap_char_choice", function(new_val)
+local snapchar = create_config_button("Snap player character", "snap_char_choice", false, function(new_val)
 	if type(new_val) == "boolean" then
 		Config.snap_char_choice = new_val
 		if Config.snap_char_choice then
@@ -403,11 +388,15 @@ create_config_button("Snap player character", "snap_char_choice", function(new_v
 		end
 	end
 end)
-
-create_config_button("Prediction", "prediction", function(new_val)
+local preditct = create_config_button("Prediction", "prediction", true, function(new_val)
 	if type(new_val) == "boolean" then
 		Config.prediction = new_val
 		message("Config", "Prediction: " .. (Config.prediction and "ON" or "OFF"), 1.5)
+	end
+end)
+local smoothMode = create_config_button("SmoothEnabled", "smoothing", true, function(new_val)
+	if type(new_val) == "boolean" then
+		Config["smoothing"] = new_val
 	end
 end)
 

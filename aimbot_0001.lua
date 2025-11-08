@@ -400,7 +400,10 @@ local smoothMode = create_config_button("SmoothEnabled", "smoothing", true, func
 	end
 end)
 
-aim_button.Activated:Connect(auto_aim_function)
+aim_button.Activated:Connect(function()
+	if next(currently_dragged) then return end
+	auto_aim_function()
+end)
 config_toggle.Activated:Connect(function()
 	if next(currently_dragged) then return end
 	config_frame.Visible = not config_frame.Visible

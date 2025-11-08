@@ -186,9 +186,6 @@ adjust_layout(config_frame,false,true)
 local function add_config(key, default_value)
 	if Config[key] == nil then
 		Config[key] = default_value
-		print("[Config] Created new setting:", key, "=", tostring(default_value))
-	else
-		print("[Config] Using existing setting:", key, "=", tostring(Config[key]))
 	end
 	return Config[key]
 end
@@ -285,16 +282,19 @@ local function find_closest_target()
 	local camCF = cam.CFrame
 	local selfChar = SELF.Character
 	if not selfChar then return nil end
+	local detect_range = Config["range"]
+	local raycast_enabled = Config["raycast"]
+	local closest, shortest = nil, math.huge
 	local potentialTargetsSet = {}
 	local potentialTargets = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
-		if pl ~= SELF and pl.Character and not potentialTargetsSet[pl.Character] then
+		if pl ~= SELF and pl.Character and pl.Character:FindFirstChild("Head") then
 			potentialTargetsSet[pl.Character] = true
 			table.insert(potentialTargets, pl.Character)
 		end
 	end
 	for _, model in ipairs(workspace:GetDescendants()) do
-		if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
+		if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") and model:FindFirstChild("Head") then
 			local alreadyPlayerChar = Players:GetPlayerFromCharacter(model) ~= nil
 			if not alreadyPlayerChar and model ~= selfChar and not potentialTargetsSet[model] then
 				potentialTargetsSet[model] = true
@@ -302,28 +302,40 @@ local function find_closest_target()
 			end
 		end
 	end
-	local closest, shortest = nil, math.huge
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = {selfChar}
+	params.IgnoreWater = true
 	for _, char in ipairs(potentialTargets) do
 		local head = char:FindFirstChild("Head")
 		if head and head:IsA("BasePart") then
-			local dist = (head.Position - camCF.Position).Magnitude
-			if dist < shortest then
-				shortest = dist
-				closest = head
+			local origin = camCF.Position
+			local direction = (head.Position - origin)
+			local distance = direction.Magnitude
+			if distance <= detect_range then
+				if raycast_enabled then
+					local result = workspace:Raycast(origin, direction, params)
+					if result then
+						if result.Instance == head then
+							if distance < shortest then
+								shortest = distance
+								closest = head
+							end
+						end
+					end
+				else
+					if distance < shortest then
+						shortest = distance
+						closest = head
+					end
+				end
 			end
 		end
 	end
+
 	return closest
 end
-local function update_target_loop()
-	while aim_running do
-		pcall(function()
-			target_head = find_closest_target()
-		end)
-		task.wait(0.18)
-	end
-	target_head = nil
-end
+
 local function aim_at_target(dt)
 	if not target_head or not cam then return end
 	local camCF = cam.CFrame
@@ -338,11 +350,15 @@ local function aim_at_target(dt)
 	local targetPos = head.Position
 	if Config.prediction then
 		local distance = (targetPos - camCF.Position).Magnitude
-		local predictionTime = math.clamp(distance / 150, 0.05, 0.25)
+		local predictionTime = math.clamp(distance / 500, 0.05, 0.25)
 		targetPos += targetVelocity * predictionTime
 	end
-	local direction = (targetPos - camCF.Position)
-	if direction.Magnitude <= 0 then return end
+	local lastDirection
+	local direction = (targetPos - camCF.Position).Unit
+	if lastDirection and direction:Dot(lastDirection) > 0.9 then
+		return
+	end
+	lastDirection = direction
 	local desiredCF = CFrame.new(camCF.Position, camCF.Position + direction.Unit)
 	local alpha = math.clamp((Config.lerpSpeed or 16) * dt, 0, 1)
 	if Config["smoothing"] then
@@ -358,11 +374,21 @@ local function auto_aim_function()
 			auto_aim_conn:Disconnect()
 			auto_aim_conn = nil
 		end
+		if target_updater_thread then
+			task.cancel(target_updater_thread)
+		end
 		target_head = nil
 		message("Auto Aim", "Auto-aim stopped", 1)
 	else
 		aim_running = true
-		target_updater_thread = task.spawn(update_target_loop)
+		target_updater_thread = task.spawn(function()
+			while aim_running do
+				pcall(function()
+					target_head = find_closest_target()
+				end)
+				task.wait(0.5)
+			end
+		end)
 		auto_aim_conn = RunService.RenderStepped:Connect(function(dt)
 			pcall(function() aim_at_target(dt) end)
 		end)
@@ -375,7 +401,7 @@ local snapspeed = create_config_button("Snap speed", "lerpSpeed", 16, function(n
 		Config.lerpSpeed = n
 	end
 end)
-local snapchar = create_config_button("Snap player character", "snap_char_choice", false, function(new_val)
+local snapchar = create_config_button("SnapCharacter", "snap_char_choice", false, function(new_val)
 	if type(new_val) == "boolean" then
 		Config.snap_char_choice = new_val
 		if Config.snap_char_choice then
@@ -397,6 +423,16 @@ end)
 local smoothMode = create_config_button("SmoothEnabled", "smoothing", true, function(new_val)
 	if type(new_val) == "boolean" then
 		Config["smoothing"] = new_val
+	end
+end)
+local rangenum = create_config_button("DetectRange", "range", 100, function(new_val)
+	if type(new_val) == "number" then
+		Config["range"] = new_val
+	end
+end)
+local do_raycast = create_config_button("RaycastEnabled", "raycast", true, function(new_val)
+	if type(new_val) == "boolean" then
+		Config["raycast"] = new_val
 	end
 end)
 
